@@ -25,7 +25,7 @@ function formatTooltip(value: unknown): string {
 }
 
 export function DailyCashflowChart() {
-	const analysis = useDashboardStore((s) => s.analysis);
+	const analysis = useDashboardStore((s) => s.filteredAnalysis);
 	if (!analysis) return null;
 
 	const data = analysis.metrics.dailyTrend;
@@ -88,7 +88,7 @@ export function CategorySpendChart() {
 }
 
 export function TopRecipientsChart() {
-	const analysis = useDashboardStore((s) => s.analysis);
+	const analysis = useDashboardStore((s) => s.filteredAnalysis);
 	if (!analysis) return null;
 
 	const data = analysis.metrics.topRecipientsBySpend.slice(0, 10).map((r) => ({
@@ -120,7 +120,7 @@ export function TopRecipientsChart() {
 }
 
 export function WeekdaySpendChart() {
-	const analysis = useDashboardStore((s) => s.analysis);
+	const analysis = useDashboardStore((s) => s.filteredAnalysis);
 	if (!analysis) return null;
 
 	const data = analysis.metrics.dayOfWeekSpend;

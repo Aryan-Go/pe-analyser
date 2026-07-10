@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { FolderSummary, TxnRow, WebAppPayload } from "@/lib/types";
+import { runAnalysis } from "@/lib/pdf/analyser";
 
 type Filters = {
 	month: string | null;
@@ -11,6 +12,7 @@ type DashboardState = {
 	selectedFolder: string | null;
 	rows: TxnRow[];
 	analysis: WebAppPayload | null;
+	filteredAnalysis: WebAppPayload | null;
 	categories: string[];
 	loading: { folders: boolean; snapshot: boolean; upload: boolean; save: boolean };
 	error: string | null;
@@ -35,21 +37,18 @@ type DashboardState = {
 	batchSetCategory: (category: string) => void;
 };
 
-function getFilteredRows(rows: TxnRow[], filters: Filters, analysis: WebAppPayload | null): TxnRow[] {
+function getMonthFromDate(date: string): string {
+	const parsed = new Date(date);
+	if (Number.isNaN(parsed.getTime())) return "unknown";
+	const year = parsed.getFullYear();
+	const month = String(parsed.getMonth() + 1).padStart(2, "0");
+	return `${year}-${month}`;
+}
+
+function getFilteredRows(rows: TxnRow[], filters: Filters): TxnRow[] {
 	let filtered = [...rows];
-	if (filters.month && analysis) {
-		const monthMap = new Map<string, string>();
-		for (const txn of analysis.metrics.dailyTrend) {
-			monthMap.set(txn.period, txn.period);
-		}
-		filtered = filtered.filter((r) => {
-			const dateStr = r.date;
-			for (const period of monthMap.keys()) {
-				if (dateStr.includes(period.slice(0, 7)) || dateStr === period) return true;
-			}
-			if (filters.month && r.date.includes(filters.month)) return true;
-			return false;
-		});
+	if (filters.month) {
+		filtered = filtered.filter((r) => getMonthFromDate(r.date) === filters.month);
 	}
 	if (filters.category) {
 		filtered = filtered.filter((r) => (r.category || "Uncategorized") === filters.category);
@@ -57,11 +56,20 @@ function getFilteredRows(rows: TxnRow[], filters: Filters, analysis: WebAppPaylo
 	return filtered;
 }
 
+function recomputeAnalysis(rows: TxnRow[]): WebAppPayload | null {
+	try {
+		return runAnalysis(rows);
+	} catch {
+		return null;
+	}
+}
+
 export const useDashboardStore = create<DashboardState>((set, get) => ({
 	folders: [],
 	selectedFolder: null,
 	rows: [],
 	analysis: null,
+	filteredAnalysis: null,
 	categories: [],
 	loading: { folders: false, snapshot: false, upload: false, save: false },
 	error: null,
@@ -93,9 +101,11 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 			if (data.ok) {
 				const origMap = new Map<string, string>();
 				for (const r of data.rows) origMap.set(r.txnId, r.category || "");
+				const fullAnalysis = data.analysis;
 				set({
 					rows: data.rows,
-					analysis: data.analysis,
+					analysis: fullAnalysis,
+					filteredAnalysis: fullAnalysis,
 					categories: data.categories,
 					originalCategories: origMap,
 					page: 1,
@@ -156,9 +166,14 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 			if (data.ok) {
 				const origMap = new Map<string, string>();
 				for (const r of data.rows) origMap.set(r.txnId, r.category || "");
+				const fullAnalysis = data.analysis;
+				const { filters } = get();
+				const hasFilters = filters.month || filters.category;
+				const filtered = hasFilters ? recomputeAnalysis(getFilteredRows(data.rows, filters)) : fullAnalysis;
 				set({
 					rows: data.rows,
-					analysis: data.analysis,
+					analysis: fullAnalysis,
+					filteredAnalysis: filtered ?? fullAnalysis,
 					originalCategories: origMap,
 				});
 			} else {
@@ -172,10 +187,12 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 	},
 
 	setFilter: (field, value) => {
-		set((s) => ({ filters: { ...s.filters, [field]: value }, page: 1 }));
+		const nextFilters = { ...get().filters, [field]: value };
+		const filtered = recomputeAnalysis(getFilteredRows(get().rows, nextFilters)) ?? get().analysis;
+		set({ filters: nextFilters, page: 1, filteredAnalysis: filtered });
 	},
 	clearFilters: () => {
-		set({ filters: { month: null, category: null }, page: 1 });
+		set({ filters: { month: null, category: null }, page: 1, filteredAnalysis: get().analysis });
 	},
 
 	setPage: (n) => set({ page: n }),
@@ -190,8 +207,8 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 		});
 	},
 	selectAll: () => {
-		const { rows, filters, analysis, page, pageSize } = get();
-		const filtered = getFilteredRows(rows, filters, analysis);
+		const { rows, filters, page, pageSize } = get();
+		const filtered = getFilteredRows(rows, filters);
 		const start = (page - 1) * pageSize;
 		const pageRows = filtered.slice(start, start + pageSize);
 		set({ selection: new Set(pageRows.map((r) => r.txnId)) });
@@ -199,33 +216,37 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 	clearSelection: () => set({ selection: new Set() }),
 
 	setCategory: (txnId, category) => {
-		set((s) => ({
-			rows: s.rows.map((r) => (r.txnId === txnId ? { ...r, category } : r)),
-		}));
+		const updated = get().rows.map((r) => (r.txnId === txnId ? { ...r, category } : r));
+		const fullAnalysis = recomputeAnalysis(updated) ?? get().analysis;
+		const { filters } = get();
+		const hasFilters = filters.month || filters.category;
+		const filtered = hasFilters ? recomputeAnalysis(getFilteredRows(updated, filters)) : fullAnalysis;
+		set({ rows: updated, analysis: fullAnalysis, filteredAnalysis: filtered ?? fullAnalysis });
 	},
 	batchSetCategory: (category) => {
-		set((s) => ({
-			rows: s.rows.map((r) => (s.selection.has(r.txnId) ? { ...r, category } : r)),
-			selection: new Set(),
-		}));
+		const updated = get().rows.map((r) => (get().selection.has(r.txnId) ? { ...r, category } : r));
+		const fullAnalysis = recomputeAnalysis(updated) ?? get().analysis;
+		const { filters } = get();
+		const hasFilters = filters.month || filters.category;
+		const filtered = hasFilters ? recomputeAnalysis(getFilteredRows(updated, filters)) : fullAnalysis;
+		set({ rows: updated, analysis: fullAnalysis, filteredAnalysis: filtered ?? fullAnalysis, selection: new Set() });
 	},
 }));
 
 export function useFilteredRows(): TxnRow[] {
-	const { rows, filters, analysis } = useDashboardStore();
-	return getFilteredRows(rows, filters, analysis);
+	const { rows, filters } = useDashboardStore();
+	return getFilteredRows(rows, filters);
 }
 
 export function useAvailableMonths(): string[] {
-	const analysis = useDashboardStore((s) => s.analysis);
-	if (!analysis) return [];
+	const rows = useDashboardStore((s) => s.rows);
 	const seen = new Set<string>();
 	const months: string[] = [];
-	for (const txn of analysis.metrics.dailyTrend) {
-		const month = txn.period.slice(0, 7);
-		if (!seen.has(month)) {
-			seen.add(month);
-			months.push(month);
+	for (const r of rows) {
+		const m = getMonthFromDate(r.date);
+		if (m !== "unknown" && !seen.has(m)) {
+			seen.add(m);
+			months.push(m);
 		}
 	}
 	return months.sort();

@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useDashboardStore } from "@/stores/dashboard";
 
 export function SummaryCards() {
-	const analysis = useDashboardStore((s) => s.analysis);
+	const analysis = useDashboardStore((s) => s.filteredAnalysis);
 
 	if (!analysis) return null;
 
