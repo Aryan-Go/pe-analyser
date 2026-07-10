@@ -57,7 +57,7 @@ export function DailyCashflowChart() {
 }
 
 export function CategorySpendChart() {
-	const analysis = useDashboardStore((s) => s.analysis);
+	const analysis = useDashboardStore((s) => s.filteredAnalysis);
 	if (!analysis) return null;
 
 	const data = analysis.metrics.categoryMetrics
