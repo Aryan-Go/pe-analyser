@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { AutoTagRules } from "@/components/settings/auto-tag-rules";
+import { GroupedAutoTagRules } from "@/components/settings/grouped-auto-tag-rules";
 import type { AutoTagRule } from "@/lib/autotag";
 import { ALLOWED_CATEGORIES } from "@/lib/categories";
 
@@ -51,8 +51,12 @@ export function RulesPopup({ open, onClose, anchorEl }: Props) {
 	useEffect(() => {
 		if (!open) return;
 		function handleClick(e: MouseEvent) {
-			if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-				onClose();
+			const target = e.target as Node;
+			if (panelRef.current && !panelRef.current.contains(target)) {
+				const inSelect = (target as Element).closest('[data-slot="select-content"]');
+				if (!inSelect) {
+					onClose();
+				}
 			}
 		}
 		document.addEventListener("mousedown", handleClick);
@@ -140,7 +144,7 @@ export function RulesPopup({ open, onClose, anchorEl }: Props) {
 					</div>
 				)}
 
-				<AutoTagRules
+				<GroupedAutoTagRules
 					rules={rules}
 					tags={tags}
 					compact

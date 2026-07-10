@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { AutoTagRules } from "./auto-tag-rules";
+import { GroupedAutoTagRules } from "./grouped-auto-tag-rules";
 import type { AutoTagRule } from "@/lib/autotag";
 import { ALLOWED_CATEGORIES } from "@/lib/categories";
 
@@ -112,7 +112,7 @@ export function SettingsClient() {
 					</div>
 				)}
 
-				<AutoTagRules rules={rules} tags={tags} onChange={setRules} onDirtyChange={setDirty} onSave={handleSave} saving={saving} />
+				<GroupedAutoTagRules rules={rules} tags={tags} onChange={setRules} onDirtyChange={setDirty} onSave={handleSave} saving={saving} />
 			</main>
 		</div>
 	);

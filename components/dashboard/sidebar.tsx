@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { UploadPanel } from "./upload-panel";
 import { FolderList } from "./folder-list";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { RulesPopup } from "./rules-popup";
 
 export function Sidebar() {
@@ -20,6 +21,7 @@ export function Sidebar() {
 			<UploadPanel />
 			<FolderList />
 			<div className="mt-auto flex flex-col gap-1 pt-2">
+				<ThemeToggle />
 				<Button
 					ref={rulesBtnRef}
 					variant="ghost"

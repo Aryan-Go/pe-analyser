@@ -63,7 +63,7 @@ export function AutoTagRules({ rules, tags, onChange, onDirtyChange, onSave, sav
 				)}
 				{rules.map((rule, i) => (
 					<AutoTagRuleRow
-						key={`${i}-${rule.term}`}
+						key={i}
 						rule={rule}
 						index={i}
 						total={rules.length}
