@@ -12,8 +12,9 @@ type CategoryChipProps = {
 };
 
 export function CategoryChip({ category, onClick, active, size = "default" }: CategoryChipProps) {
-	const label = category || "Uncategorized";
-	const abbr = !category ? "—" : isValidCategory(category) ? getCategoryAbbreviation(category) : label.slice(0, 3).toUpperCase();
+	const isUntagged = category === "" || category === "Uncategorized";
+	const label = isUntagged ? "Untagged" : category;
+	const abbr = isUntagged ? "—" : isValidCategory(category) ? getCategoryAbbreviation(category) : label.slice(0, 3).toUpperCase();
 
 	return (
 		<Badge

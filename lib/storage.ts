@@ -296,10 +296,14 @@ export async function mergeFolders(dataDir: string, folderNames: [string, string
 		return db - da;
 	});
 
+	const { loadAutoTagRules, applyAutoTags } = await import("./autotag");
+	const rules = await loadAutoTagRules();
+	const finalRows = applyAutoTags(mergedRows, rules);
+
 	const folderName = await createUniqueFolderName(dataDir, "merged-");
 	const { folderPath, csvPath } = folderPaths(dataDir, folderName);
 	await mkdir(folderPath, { recursive: true });
-	await writeFile(csvPath, rowsToCsv(mergedRows), "utf-8");
+	await writeFile(csvPath, rowsToCsv(finalRows), "utf-8");
 
 	const pdfPathA = folderPaths(dataDir, folderNames[0]).pdfPath;
 	const pdfPathB = folderPaths(dataDir, folderNames[1]).pdfPath;
@@ -308,7 +312,7 @@ export async function mergeFolders(dataDir: string, folderNames: [string, string
 
 	const analysis = await analyzeCsvFiles(folderPath);
 	await persistTrend(dataDir, folderName, analysis);
-	await persistCategoryMapping(dataDir, folderName, mergedRows);
+	await persistCategoryMapping(dataDir, folderName, finalRows);
 
 	const snapshot: FolderSnapshot = {
 		folderName,
@@ -318,7 +322,7 @@ export async function mergeFolders(dataDir: string, folderNames: [string, string
 		parsedTextPath: join(folderPath, `${folderName}-parsed.txt`),
 		trendPath: join(folderPath, `${folderName}-trend.json`),
 		mappingPath: join(folderPath, `${folderName}-categories.json`),
-		rows: mergedRows,
+		rows: finalRows,
 		analysis,
 	};
 

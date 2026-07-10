@@ -12,19 +12,22 @@ export function CategoryPills() {
 
 	if (!analysis) return null;
 
-	const catMetrics = analysis.metrics.categoryMetrics.filter((c) => c.category !== "Uncategorized");
+	const catMetrics = analysis.metrics.categoryMetrics;
 	const hasFilters = filters.month || filters.categories.length > 0;
 
 	return (
 		<div className="flex flex-wrap items-center gap-1.5">
-			{catMetrics.map((c) => (
-				<CategoryChip
-					key={c.category}
-					category={c.category}
-					active={filters.categories.includes(c.category)}
-					onClick={() => toggleCategoryFilter(c.category)}
-				/>
-			))}
+			{catMetrics.map((c) => {
+				const filterValue = c.category === "Uncategorized" ? "Uncategorized" : c.category;
+				return (
+					<CategoryChip
+						key={c.category}
+						category={c.category}
+						active={filters.categories.includes(filterValue)}
+						onClick={() => toggleCategoryFilter(filterValue)}
+					/>
+				);
+			})}
 			{hasFilters && (
 				<Button variant="ghost" size="xs" onClick={clearFilters}>
 					Clear

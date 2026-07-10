@@ -12,8 +12,9 @@ import {
 	persistTrend,
 	persistCategoryMapping,
 } from "@/lib/storage";
-import { createArtifactsFromPdf, readCsvRows, updateCsvCategories } from "@/lib/pdf/parse";
+import { createArtifactsFromPdf, readCsvRows, writeCsvRows, updateCsvCategories } from "@/lib/pdf/parse";
 import { analyzeCsvFiles } from "@/lib/pdf/analyse";
+import { loadTags, loadAutoTagRules, saveAutoTagRules, applyAutoTags, reprocessAllFolders } from "@/lib/autotag";
 import { openapi } from "@elysia/openapi";
 
 const DATA_DIR = join(process.cwd(), "data");
@@ -75,6 +76,14 @@ const app = new Elysia({ prefix: "/api" })
 			await writeFile(paths.pdfPath, buffer);
 
 			const artifacts = await createArtifactsFromPdf(paths.pdfPath, paths.folderPath, `${folderName}.csv`);
+
+			const rules = await loadAutoTagRules();
+			if (rules.length > 0) {
+				const rawRows = await readCsvRows(paths.csvPath);
+				const taggedRows = applyAutoTags(rawRows, rules);
+				await writeCsvRows(paths.csvPath, taggedRows);
+			}
+
 			const analysis = await analyzeCsvFiles(paths.folderPath);
 			await persistTrend(DATA_DIR, folderName, analysis);
 			const rows = await readCsvRows(paths.csvPath);
@@ -180,6 +189,59 @@ const app = new Elysia({ prefix: "/api" })
 		{
 			body: t.Object({
 				folders: t.Array(t.String()),
+			}),
+		},
+	)
+	.get("/tags", async () => {
+		const tags = await loadTags();
+		return { ok: true, tags };
+	})
+	.get("/autotag", async () => {
+		const rules = await loadAutoTagRules();
+		return { ok: true, rules };
+	})
+	.post(
+		"/autotag",
+		async ({ body }) => {
+			try {
+				const rules = Array.isArray(body?.rules) ? body.rules : [];
+
+				for (const rule of rules) {
+					if (!rule || typeof rule.term !== "string" || !rule.term.trim()) {
+						return new Response(
+							JSON.stringify({ ok: false, error: "Each rule must have a non-empty term." }),
+							{ status: 400, headers: { "Content-Type": "application/json" } },
+						);
+					}
+					if (!rule || typeof rule.tag !== "string" || !rule.tag.trim()) {
+						return new Response(
+							JSON.stringify({ ok: false, error: "Each rule must have a tag." }),
+							{ status: 400, headers: { "Content-Type": "application/json" } },
+						);
+					}
+				}
+
+				await saveAutoTagRules(rules as Array<{ term: string; tag: string }>);
+				const saved = await loadAutoTagRules();
+				const changedCount = await reprocessAllFolders(DATA_DIR, saved);
+
+				return { ok: true, rules: saved, reprocessedFolders: changedCount };
+			} catch (error) {
+				const message = error instanceof Error ? error.message : "Failed to save auto-tag rules.";
+				return new Response(JSON.stringify({ ok: false, error: message }), {
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+		},
+		{
+			body: t.Object({
+				rules: t.Array(
+					t.Object({
+						term: t.String({ minLength: 1 }),
+						tag: t.String({ minLength: 1 }),
+					}),
+				),
 			}),
 		},
 	);
