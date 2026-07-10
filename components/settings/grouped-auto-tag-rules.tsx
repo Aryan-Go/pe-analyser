@@ -52,9 +52,6 @@ export function GroupedAutoTagRules({ rules, tags, onChange, onDirtyChange, onSa
 			</Accordion>
 
 			<div className="flex gap-2 items-center">
-				<Button size="xs" variant="outline" onClick={() => { onDirtyChange(true); onChange([...rules, { index: -1, term: "", tag: tags[0] ?? "" }]); }}>
-					+ Add Rule
-				</Button>
 				<span className="text-[0.55rem] text-muted-foreground">{totalCount} rule{totalCount !== 1 ? "s" : ""}</span>
 				<div className="flex-1" />
 				<Button size="xs" onClick={onSave} disabled={!canSave}>
