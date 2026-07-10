@@ -5,7 +5,7 @@ import { runAnalysis } from "@/lib/pdf/analyser";
 
 type Filters = {
 	month: string | null;
-	category: string | null;
+	categories: string[];
 };
 
 type DashboardState = {
@@ -31,8 +31,9 @@ type DashboardState = {
 	loadFolder: (name: string) => Promise<void>;
 	uploadPdf: (file: File) => Promise<void>;
 	saveCategories: () => Promise<void>;
-	setFilter: (field: keyof Filters, value: string | null) => void;
+	setFilter: (field: "month", value: string | null) => void;
 	clearFilters: () => void;
+	toggleCategoryFilter: (category: string) => void;
 	setPage: (n: number) => void;
 	setPageSize: (n: number) => void;
 	toggleSelection: (txnId: string) => void;
@@ -62,8 +63,8 @@ function getFilteredRows(rows: TxnRow[], filters: Filters): TxnRow[] {
 	if (filters.month) {
 		filtered = filtered.filter((r) => getMonthFromDate(r.date) === filters.month);
 	}
-	if (filters.category) {
-		filtered = filtered.filter((r) => (r.category || "Uncategorized") === filters.category);
+	if (filters.categories.length > 0) {
+		filtered = filtered.filter((r) => filters.categories.includes(r.category || "Uncategorized"));
 	}
 	return filtered.sort((a, b) => {
 		const da = new Date(`${a.date} ${a.time}`).getTime();
@@ -89,7 +90,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 	categories: [],
 	loading: { folders: false, snapshot: false, upload: false, save: false },
 	error: null,
-	filters: { month: null, category: null },
+	filters: { month: null, categories: [] },
 	page: 1,
 	pageSize: 25,
 	selection: new Set(),
@@ -130,7 +131,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 					originalCategories: origMap,
 					page: 1,
 					selection: new Set(),
-					filters: { month: null, category: null },
+					filters: { month: null, categories: [] },
 				});
 				localStorage.setItem("selectedFolder", name);
 			} else {
@@ -188,7 +189,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 				for (const r of data.rows) origMap.set(r.txnId, r.category || "");
 				const fullAnalysis = data.analysis;
 				const { filters } = get();
-				const hasFilters = filters.month || filters.category;
+				const hasFilters = filters.month || filters.categories.length > 0;
 				const filtered = hasFilters ? recomputeAnalysis(getFilteredRows(data.rows, filters)) : fullAnalysis;
 				set({
 					rows: data.rows,
@@ -211,8 +212,20 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 		const filtered = recomputeAnalysis(getFilteredRows(get().rows, nextFilters)) ?? get().analysis;
 		set({ filters: nextFilters, page: 1, filteredAnalysis: filtered });
 	},
+
+	toggleCategoryFilter: (category) => {
+		set((s) => {
+			const next = s.filters.categories.includes(category)
+				? s.filters.categories.filter((c) => c !== category)
+				: [...s.filters.categories, category];
+			const nextFilters = { ...s.filters, categories: next };
+			const filtered = recomputeAnalysis(getFilteredRows(get().rows, nextFilters)) ?? get().analysis;
+			return { filters: nextFilters, page: 1, filteredAnalysis: filtered };
+		});
+	},
+
 	clearFilters: () => {
-		set({ filters: { month: null, category: null }, page: 1, filteredAnalysis: get().analysis });
+		set({ filters: { month: null, categories: [] }, page: 1, filteredAnalysis: get().analysis });
 	},
 
 	setPage: (n) => set({ page: n }),
@@ -239,7 +252,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 		const updated = get().rows.map((r) => (r.txnId === txnId ? { ...r, category } : r));
 		const fullAnalysis = recomputeAnalysis(updated) ?? get().analysis;
 		const { filters } = get();
-		const hasFilters = filters.month || filters.category;
+		const hasFilters = filters.month || filters.categories.length > 0;
 		const filtered = hasFilters ? recomputeAnalysis(getFilteredRows(updated, filters)) : fullAnalysis;
 		set({ rows: updated, analysis: fullAnalysis, filteredAnalysis: filtered ?? fullAnalysis });
 	},
@@ -247,7 +260,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 		const updated = get().rows.map((r) => (get().selection.has(r.txnId) ? { ...r, category } : r));
 		const fullAnalysis = recomputeAnalysis(updated) ?? get().analysis;
 		const { filters } = get();
-		const hasFilters = filters.month || filters.category;
+		const hasFilters = filters.month || filters.categories.length > 0;
 		const filtered = hasFilters ? recomputeAnalysis(getFilteredRows(updated, filters)) : fullAnalysis;
 		set({ rows: updated, analysis: fullAnalysis, filteredAnalysis: filtered ?? fullAnalysis, selection: new Set() });
 	},
