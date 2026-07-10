@@ -17,6 +17,14 @@ A dashboard for analyzing and categorizing PhonePe bank statements. Upload PDF s
 
 ## Getting Started
 
+This project runs on [Bun](https://bun.sh). Install it first:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+Then install dependencies and start the dev server:
+
 ```bash
 bun install
 bun dev
@@ -40,7 +48,7 @@ Data is stored under `data/` in the project root. Each uploaded statement gets i
 Click a folder in the sidebar to load the dashboard:
 
 - **Summary cards** — total inflow, outflow, net cashflow, transaction count
-- **Category pills** — click any category to filter the entire dashboard to just that category. Click multiple to combine filters. Click again to remove. A **Clear** button resets all filters
+- **Category pills** — click any category to filter the entire dashboard to that category. Click multiple to combine filters. The **Untagged** pill filters to uncategorized transactions. Click again to remove. A **Clear** button resets all filters
 - **Month filter** — dropdown to filter by a specific YYYY-MM month
 - **Charts** — daily cashflow trend, category spend breakdown, top recipients, and weekday spend patterns. All charts respond to the current month and category filters
 - **Category Metrics table** — per-category breakdown with counts, averages, share %
@@ -66,7 +74,16 @@ Each transaction shows a row of category chips (FOOD, TRANSPORT, PERSONAL, etc.)
 
 Click multiple category pills at once to filter by any combination (e.g. FOOD + TRANSPORT). The summary cards, charts, and transaction table all narrow to show only matching rows.
 
-### 5. Merge Statements
+### 5. Auto-Tag Rules
+
+Define rules that automatically tag transactions by matching terms in the sender name (e.g. `swiggy` → FOOD). Open the **Rules** popup from the sidebar to manage rules inline, or visit the full **Settings** page.
+
+- Rules have priority — drag them to reorder. Top rules are evaluated first.
+- Only **untagged** rows are affected. Manually-tagged transactions are never overwritten.
+- Rules apply during PDF upload and folder merging. Saving rules re-processes all existing folders, filling in blanks across every statement.
+- Terms are case-insensitive substrings matched against the transaction description.
+
+### 6. Merge Statements
 
 Merge two folders into a single combined statement:
 
@@ -82,7 +99,7 @@ The backend:
 - Generates a fresh analysis for the combined dataset
 - Creates a new folder with a `merged-` prefix
 
-### 6. Change Rows per Page
+### 7. Change Rows per Page
 
 In the transactions table footer, use the dropdown to switch between 10, 25, 50, or 100 rows per page. The page resets to 1 when changing.
 
@@ -120,21 +137,29 @@ budget-tracker/
 │   │   ├── summary-cards.tsx        # Inflow/outflow/net summary
 │   │   ├── keyboard-handler.tsx     # Keyboard shortcuts for tagging
 │   │   ├── batch-action-bar.tsx     # Bulk category assignment
+│   │   ├── rules-popup.tsx            # Inline auto-tag rules popup
 │   │   ├── sidebar.tsx              # Sidebar wrapper
 │   │   └── upload-panel.tsx         # PDF upload dropzone
+│   ├── settings/
+│   │   ├── settings-client.tsx       # Full settings page
+│   │   ├── auto-tag-rules.tsx        # Rules table (shared with popup)
+│   │   └── auto-tag-rule-row.tsx     # Single rule row
 │   └── ui/                          # shadcn/ui primitives
 ├── lib/
 │   ├── pdf/
 │   │   ├── parse.ts                 # PDF → CSV parsing + CSV I/O
 │   │   ├── analyse.ts               # Node-specific analysis entry
 │   │   └── analyser.ts              # Pure analysis computation (client-safe)
+│   ├── autotag.ts                   # Auto-tag rules: load/save/apply/reprocess
 │   ├── categories.ts                # Allowed categories + abbreviations
 │   ├── storage.ts                   # Folder management, merge logic
 │   ├── types.ts                     # Re-exports
 │   └── utils.ts                     # Tailwind utilities
 ├── stores/
 │   └── dashboard.ts                 # Zustand store (rows, filters, analysis, merge)
-└── data/                            # Uploaded statements (gitignored)
+└── data/                            # Uploaded statements + config (gitignored)
+    ├── tags.json                     # Canonical category list
+    └── autotag.json                 # Auto-tag rule definitions
 ```
 
 ## API Endpoints
@@ -146,4 +171,7 @@ budget-tracker/
 | `POST` | `/api/folders` | Upload a PDF → create folder |
 | `POST` | `/api/folders/:name/categories` | Save category changes |
 | `POST` | `/api/folders/merge` | Merge two folders |
+| `GET` | `/api/tags` | List available tags |
+| `GET` | `/api/autotag` | Get auto-tag rules |
+| `POST` | `/api/autotag` | Save auto-tag rules + reprocess all folders |
 | `GET` | `/api/categories` | List available categories |
