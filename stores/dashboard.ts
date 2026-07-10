@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { FolderSummary, TxnRow, WebAppPayload } from "@/lib/types";
+import { ALLOWED_CATEGORIES } from "@/lib/categories";
 import { runAnalysis } from "@/lib/pdf/analyser";
 
 type Filters = {
@@ -20,6 +21,7 @@ type DashboardState = {
 	page: number;
 	pageSize: number;
 	selection: Set<string>;
+	focusedRowTxnId: string | null;
 	originalCategories: Map<string, string>;
 
 	loadFolders: () => Promise<void>;
@@ -35,6 +37,9 @@ type DashboardState = {
 	clearSelection: () => void;
 	setCategory: (txnId: string, category: string) => void;
 	batchSetCategory: (category: string) => void;
+	focusNextRow: (direction: -1 | 1) => void;
+	tagFocusedRow: (digit: string) => void;
+	clearFocus: () => void;
 };
 
 function getMonthFromDate(date: string): string {
@@ -53,7 +58,11 @@ function getFilteredRows(rows: TxnRow[], filters: Filters): TxnRow[] {
 	if (filters.category) {
 		filtered = filtered.filter((r) => (r.category || "Uncategorized") === filters.category);
 	}
-	return filtered;
+	return filtered.sort((a, b) => {
+		const da = new Date(`${a.date} ${a.time}`).getTime();
+		const db = new Date(`${b.date} ${b.time}`).getTime();
+		return db - da;
+	});
 }
 
 function recomputeAnalysis(rows: TxnRow[]): WebAppPayload | null {
@@ -77,6 +86,7 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 	page: 1,
 	pageSize: 25,
 	selection: new Set(),
+	focusedRowTxnId: null,
 	originalCategories: new Map(),
 
 	loadFolders: async () => {
@@ -231,6 +241,39 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 		const filtered = hasFilters ? recomputeAnalysis(getFilteredRows(updated, filters)) : fullAnalysis;
 		set({ rows: updated, analysis: fullAnalysis, filteredAnalysis: filtered ?? fullAnalysis, selection: new Set() });
 	},
+
+	focusNextRow: (direction) => {
+		const { focusedRowTxnId, filters, page, pageSize, rows } = get();
+		const filtered = getFilteredRows(rows, filters);
+		const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+		const currentPageRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+		const currentIdx = focusedRowTxnId ? currentPageRows.findIndex((r) => r.txnId === focusedRowTxnId) : -1;
+
+		if (currentIdx === -1) {
+			const txnId = (direction > 0 ? currentPageRows[0] : currentPageRows[currentPageRows.length - 1])?.txnId ?? null;
+			set({ focusedRowTxnId: txnId });
+		} else {
+			const newIdx = currentIdx + direction;
+			if (newIdx >= 0 && newIdx < currentPageRows.length) {
+				set({ focusedRowTxnId: currentPageRows[newIdx]?.txnId ?? null });
+			} else if (direction > 0 && page < totalPages) {
+				set({ page: page + 1, focusedRowTxnId: null });
+			} else if (direction < 0 && page > 1) {
+				set({ page: page - 1, focusedRowTxnId: null });
+			}
+		}
+	},
+
+	tagFocusedRow: (digit) => {
+		const { focusedRowTxnId } = get();
+		if (!focusedRowTxnId) return;
+		const categories = ["", ...ALLOWED_CATEGORIES];
+		const idx = Number.parseInt(digit, 10);
+		const category = categories[idx] ?? "";
+		get().setCategory(focusedRowTxnId, category);
+	},
+
+	clearFocus: () => set({ focusedRowTxnId: null, selection: new Set() }),
 }));
 
 export function useFilteredRows(): TxnRow[] {

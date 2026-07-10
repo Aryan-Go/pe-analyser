@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useDashboardStore, useFilteredRows } from "@/stores/dashboard";
@@ -11,14 +13,23 @@ export function EntriesTable() {
 	const page = useDashboardStore((s) => s.page);
 	const pageSize = useDashboardStore((s) => s.pageSize);
 	const setPage = useDashboardStore((s) => s.setPage);
+	const setPageSize = useDashboardStore((s) => s.setPageSize);
 	const selection = useDashboardStore((s) => s.selection);
+	const focusedRowTxnId = useDashboardStore((s) => s.focusedRowTxnId);
 	const toggleSelection = useDashboardStore((s) => s.toggleSelection);
 	const selectAll = useDashboardStore((s) => s.selectAll);
 	const setCategory = useDashboardStore((s) => s.setCategory);
+	const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
 	const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
 	const start = (page - 1) * pageSize;
 	const pageRows = filteredRows.slice(start, start + pageSize);
+
+	useEffect(() => {
+		if (!focusedRowTxnId || !tbodyRef.current) return;
+		const row = tbodyRef.current.querySelector(`tr[data-txn-id="${CSS.escape(focusedRowTxnId)}"]`);
+		if (row) row.scrollIntoView({ block: "nearest" });
+	}, [focusedRowTxnId, page]);
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -47,11 +58,18 @@ export function EntriesTable() {
 							<TableHead>Category</TableHead>
 						</TableRow>
 					</TableHeader>
-					<TableBody>
+					<TableBody ref={tbodyRef}>
 						{pageRows.map((row) => (
 							<TableRow
 								key={row.txnId}
-								className={selection.has(row.txnId) ? "bg-muted/50" : ""}
+								data-txn-id={row.txnId}
+								className={
+									focusedRowTxnId === row.txnId
+										? "bg-accent ring-1 ring-primary/50"
+										: selection.has(row.txnId)
+											? "bg-muted/50"
+											: ""
+								}
 							>
 								<TableCell>
 									<input
@@ -109,11 +127,24 @@ export function EntriesTable() {
 				</Table>
 			</div>
 
-			{totalPages > 1 && (
-				<div className="flex items-center justify-between">
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-3">
 					<span className="text-[0.6rem] text-muted-foreground">
 						{filteredRows.length} transactions · Page {page} of {totalPages}
 					</span>
+					<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+						<SelectTrigger size="sm" className="w-16">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="10">10</SelectItem>
+							<SelectItem value="25">25</SelectItem>
+							<SelectItem value="50">50</SelectItem>
+							<SelectItem value="100">100</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+				{totalPages > 1 && (
 					<div className="flex gap-1">
 						<Button variant="outline" size="xs" disabled={page <= 1} onClick={() => setPage(page - 1)}>
 							Prev
@@ -122,8 +153,8 @@ export function EntriesTable() {
 							Next
 						</Button>
 					</div>
-				</div>
-			)}
+				)}
+			</div>
 		</div>
 	);
 }

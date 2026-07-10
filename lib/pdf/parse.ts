@@ -126,6 +126,7 @@ export function parseTransactionsFromCleanText(text: string): TxnRow[] {
 	const rows: TxnRow[] = [];
 	const dateRegex = /^[A-Za-z]{3}\s+\d{1,2},\s+\d{4}$/;
 	const timeRegex = /^\d{1,2}:\d{2}\s*[ap]m$/i;
+	const creditDebitRegex = /^(CREDIT|DEBIT)(?:₹|INR)\s*([\d,]+(?:\.\d+)?)\s*(.*)$/i;
 
 	let i = 0;
 	while (i < lines.length) {
@@ -138,38 +139,67 @@ export function parseTransactionsFromCleanText(text: string): TxnRow[] {
 		const time = lines[i + 1] as string;
 		i += 2;
 
+		// Collect detail lines until we hit Transaction ID
 		const detailLines: string[] = [];
 		while (i < lines.length && !/^Transaction ID\b/i.test(lines[i] ?? "")) {
 			detailLines.push(lines[i] as string);
 			i += 1;
 		}
 
-		if (detailLines.length === 0 || i >= lines.length) {
-			continue;
-		}
+		if (i >= lines.length) continue;
 
-		const firstDetail = detailLines[0] ?? "";
-		const detailMatch = firstDetail.match(/^(CREDIT|DEBIT)₹([\d,]+(?:\.\d+)?)\s*(.*)$/i);
-		if (!detailMatch) {
-			continue;
-		}
-
-		const type = (detailMatch[1] ?? "").toUpperCase() as TxnType;
-		const amount = (detailMatch[2] ?? "").replace(/,/g, "");
-		const restInFirstLine = detailMatch[3] ?? "";
-		const extraDetail = detailLines.slice(1).join(" ");
-		const description = `${restInFirstLine} ${extraDetail}`.trim();
-		const sentTo = normalizeSentTo(description);
-
+		// Parse Transaction ID
 		const txnLine = lines[i] as string;
-		const txnId = txnLine.replace(/^Transaction ID\s*/i, "").trim();
+		const txnId = txnLine.replace(/^Transaction ID\s*:?\s*/i, "").trim();
 		i += 1;
 
+		// Parse UTR
 		let utr = "";
-		if (i < lines.length && /^UTR No\./i.test(lines[i] ?? "")) {
-			utr = (lines[i] as string).replace(/^UTR No\.\s*/i, "").trim();
+		if (i < lines.length && /^UTR\s*(No\.?)?\s*:/i.test(lines[i] ?? "")) {
+			utr = (lines[i] as string).replace(/^UTR\s*(No\.?)?\s*:?\s*/i, "").trim();
 			i += 1;
 		}
+
+		// Format 1: credit/debit line is in detailLines before Transaction ID
+		let type: TxnType = "DEBIT";
+		let amount = "";
+		let description = "";
+		let sentTo = "";
+
+		const typeLine = detailLines.find((l) => creditDebitRegex.test(l));
+		if (typeLine) {
+			const detailMatch = typeLine.match(creditDebitRegex);
+			if (detailMatch) {
+				type = (detailMatch[1] ?? "").toUpperCase() as TxnType;
+				amount = (detailMatch[2] ?? "").replace(/,/g, "");
+				const rest = detailMatch[3] ?? "";
+				description = rest.trim();
+			}
+			const otherLines = detailLines.filter((l) => l !== typeLine);
+			description = `${description} ${otherLines.join(" ")}`.trim();
+		} else {
+			// Format 2: credit/debit line comes after UTR + metadata lines (Debited from, etc.)
+			while (i < lines.length) {
+				const currentLine = lines[i] ?? "";
+				if (creditDebitRegex.test(currentLine)) {
+					const detailMatch = currentLine.match(creditDebitRegex);
+					if (detailMatch) {
+						type = (detailMatch[1] ?? "").toUpperCase() as TxnType;
+						amount = (detailMatch[2] ?? "").replace(/,/g, "");
+						description = (detailMatch[3] ?? "").trim();
+					}
+					i += 1;
+					break;
+				}
+				// Stop if we hit the next date line
+				if (dateRegex.test(currentLine)) break;
+				i += 1;
+			}
+		}
+
+		if (!amount) continue;
+
+		sentTo = normalizeSentTo(description || detailLines.join(" "));
 
 		rows.push({
 			txnId,

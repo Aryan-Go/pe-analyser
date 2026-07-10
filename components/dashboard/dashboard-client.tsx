@@ -10,6 +10,7 @@ import { ChartGrid } from "./chart-grid";
 import { CategoryMetricsTable } from "./category-metrics-table";
 import { EntriesTable } from "./entries-table";
 import { BatchActionBar } from "./batch-action-bar";
+import { KeyboardHandler } from "./keyboard-handler";
 import { Button } from "@/components/ui/button";
 
 export function DashboardClient() {
@@ -70,6 +71,7 @@ export function DashboardClient() {
 							<CategoryMetricsTable />
 							<EntriesTable />
 							<BatchActionBar />
+							<KeyboardHandler />
 						</>
 					)}
 				</main>
