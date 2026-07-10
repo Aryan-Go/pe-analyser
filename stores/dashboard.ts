@@ -22,6 +22,9 @@ type DashboardState = {
 	pageSize: number;
 	selection: Set<string>;
 	focusedRowTxnId: string | null;
+	mergeMode: boolean;
+	mergeSelection: string[];
+	mergeLoading: boolean;
 	originalCategories: Map<string, string>;
 
 	loadFolders: () => Promise<void>;
@@ -40,6 +43,10 @@ type DashboardState = {
 	focusNextRow: (direction: -1 | 1) => void;
 	tagFocusedRow: (digit: string) => void;
 	clearFocus: () => void;
+	startMerge: () => void;
+	cancelMerge: () => void;
+	toggleMergeSelect: (folderName: string) => void;
+	mergeFolders: () => Promise<void>;
 };
 
 function getMonthFromDate(date: string): string {
@@ -87,6 +94,9 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 	pageSize: 25,
 	selection: new Set(),
 	focusedRowTxnId: null,
+	mergeMode: false,
+	mergeSelection: [],
+	mergeLoading: false,
 	originalCategories: new Map(),
 
 	loadFolders: async () => {
@@ -274,6 +284,43 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 	},
 
 	clearFocus: () => set({ focusedRowTxnId: null, selection: new Set() }),
+
+	startMerge: () => set({ mergeMode: true, mergeSelection: [] }),
+	cancelMerge: () => set({ mergeMode: false, mergeSelection: [] }),
+
+	toggleMergeSelect: (folderName) => {
+		set((s) => {
+			const next = s.mergeSelection.includes(folderName)
+				? s.mergeSelection.filter((n) => n !== folderName)
+				: [...s.mergeSelection, folderName];
+			return { mergeSelection: next.slice(0, 2) };
+		});
+	},
+
+	mergeFolders: async () => {
+		const { mergeSelection } = get();
+		if (mergeSelection.length !== 2) return;
+		set({ mergeLoading: true });
+		try {
+			const res = await fetch("/api/folders/merge", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ folders: mergeSelection }),
+			});
+			const data = await res.json();
+			if (data.ok) {
+				await get().loadFolders();
+				await get().loadFolder(data.folderName);
+				set({ mergeMode: false, mergeSelection: [] });
+			} else {
+				set({ error: data.error, mergeMode: false, mergeSelection: [] });
+			}
+		} catch {
+			set({ error: "Failed to merge folders.", mergeMode: false, mergeSelection: [] });
+		} finally {
+			set({ mergeLoading: false });
+		}
+	},
 }));
 
 export function useFilteredRows(): TxnRow[] {

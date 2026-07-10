@@ -1,7 +1,7 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile, copyFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { readCsvRows, type TxnRow } from "./pdf/parse";
+import { readCsvRows, rowsToCsv, type TxnRow } from "./pdf/parse";
 import { analyzeCsvFiles, type WebAppPayload } from "./pdf/analyse";
 
 export type FolderSummary = {
@@ -100,8 +100,8 @@ export function isValidFolderName(folderName: string): boolean {
 	return /^[a-z0-9-]+$/i.test(folderName);
 }
 
-export async function createUniqueFolderName(dataDir: string): Promise<string> {
-	const base = createBaseName();
+export async function createUniqueFolderName(dataDir: string, prefix = ""): Promise<string> {
+	const base = `${prefix}${createBaseName()}`;
 	let candidate = base;
 	while (await pathExists(join(dataDir, candidate))) {
 		candidate = `${base}-${randomUUID().slice(0, 8)}`;
@@ -237,4 +237,90 @@ export async function listFolderSummaries(dataDir: string): Promise<FolderSummar
 			topCategory,
 		};
 	});
+}
+
+export async function mergeFolders(dataDir: string, folderNames: [string, string]): Promise<{ folderName: string; snapshot: FolderSnapshot }> {
+	if (folderNames[0] === folderNames[1]) {
+		throw new Error("Cannot merge a folder with itself.");
+	}
+
+	for (const name of folderNames) {
+		if (!isValidFolderName(name)) {
+			throw new Error(`Invalid folder name: ${name}`);
+		}
+		const { csvPath } = folderPaths(dataDir, name);
+		if (!(await pathExists(csvPath))) {
+			throw new Error(`Folder "${name}" has no CSV data.`);
+		}
+	}
+
+	const rowsA = await readCsvRows(folderPaths(dataDir, folderNames[0]).csvPath);
+	const rowsB = await readCsvRows(folderPaths(dataDir, folderNames[1]).csvPath);
+
+	if (rowsA.length === 0) throw new Error(`Folder "${folderNames[0]}" has no transactions.`);
+	if (rowsB.length === 0) throw new Error(`Folder "${folderNames[1]}" has no transactions.`);
+
+	const merged = new Map<string, TxnRow>();
+	for (const r of rowsA) merged.set(r.txnId, r);
+
+	for (const rB of rowsB) {
+		const existing = merged.get(rB.txnId);
+		if (!existing) {
+			merged.set(rB.txnId, rB);
+			continue;
+		}
+
+		const tsA = new Date(`${existing.date} ${existing.time}`).getTime();
+		const tsB = new Date(`${rB.date} ${rB.time}`).getTime();
+
+		if (tsB > tsA) {
+			if (!rB.category && existing.category) {
+				merged.set(rB.txnId, { ...rB, category: existing.category });
+			} else {
+				merged.set(rB.txnId, rB);
+			}
+		} else if (tsB < tsA) {
+			// keep existing — nothing to do
+		} else {
+			const winner = { ...rB };
+			if (!winner.category && existing.category) {
+				winner.category = existing.category;
+			}
+			merged.set(rB.txnId, winner);
+		}
+	}
+
+	const mergedRows = Array.from(merged.values()).sort((a, b) => {
+		const da = new Date(`${a.date} ${a.time}`).getTime();
+		const db = new Date(`${b.date} ${b.time}`).getTime();
+		return db - da;
+	});
+
+	const folderName = await createUniqueFolderName(dataDir, "merged-");
+	const { folderPath, csvPath } = folderPaths(dataDir, folderName);
+	await mkdir(folderPath, { recursive: true });
+	await writeFile(csvPath, rowsToCsv(mergedRows), "utf-8");
+
+	const pdfPathA = folderPaths(dataDir, folderNames[0]).pdfPath;
+	const pdfPathB = folderPaths(dataDir, folderNames[1]).pdfPath;
+	await copyFile(pdfPathA, join(folderPath, `${folderName}_a.pdf`));
+	await copyFile(pdfPathB, join(folderPath, `${folderName}_b.pdf`));
+
+	const analysis = await analyzeCsvFiles(folderPath);
+	await persistTrend(dataDir, folderName, analysis);
+	await persistCategoryMapping(dataDir, folderName, mergedRows);
+
+	const snapshot: FolderSnapshot = {
+		folderName,
+		folderPath,
+		pdfPath: join(folderPath, `${folderName}_a.pdf`),
+		csvPath,
+		parsedTextPath: join(folderPath, `${folderName}-parsed.txt`),
+		trendPath: join(folderPath, `${folderName}-trend.json`),
+		mappingPath: join(folderPath, `${folderName}-categories.json`),
+		rows: mergedRows,
+		analysis,
+	};
+
+	return { folderName, snapshot };
 }

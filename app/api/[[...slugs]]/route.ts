@@ -8,6 +8,7 @@ import {
 	folderPaths,
 	listFolderSummaries,
 	loadFolderSnapshot,
+	mergeFolders,
 	persistTrend,
 	persistCategoryMapping,
 } from "@/lib/storage";
@@ -146,6 +147,39 @@ const app = new Elysia({ prefix: "/api" })
 						category: t.String(),
 					}),
 				),
+			}),
+		},
+	)
+	.post(
+		"/folders/merge",
+		async ({ body }) => {
+			try {
+				const folders = Array.isArray(body?.folders) ? body.folders : [];
+				if (!folders || folders.length !== 2) {
+					return new Response(JSON.stringify({ ok: false, error: "Exactly two folder names are required." }), {
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					});
+				}
+
+				const { folderName, snapshot } = await mergeFolders(DATA_DIR, folders as [string, string]);
+
+				return {
+					ok: true,
+					...snapshot,
+					categories: ALLOWED_CATEGORIES,
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : "Failed to merge folders.";
+				return new Response(JSON.stringify({ ok: false, error: message }), {
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+		},
+		{
+			body: t.Object({
+				folders: t.Array(t.String()),
 			}),
 		},
 	);
