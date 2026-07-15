@@ -15,6 +15,7 @@ import {
 import { createArtifactsFromPdf, readCsvRows, writeCsvRows, updateCsvCategories } from "@/lib/pdf/parse";
 import { analyzeCsvFiles } from "@/lib/pdf/analyse";
 import { loadTags, loadAutoTagRules, saveAutoTagRules, applyAutoTags, reprocessAllFolders } from "@/lib/autotag";
+import { loadBudget, saveBudget } from "@/lib/budget";
 import { openapi } from "@elysia/openapi";
 
 const DATA_DIR = join(process.cwd(), "data");
@@ -242,6 +243,23 @@ const app = new Elysia({ prefix: "/api" })
 						tag: t.String({ minLength: 1 }),
 					}),
 				),
+			}),
+		},
+	)
+	.get("/budget", async () => {
+		const budget = await loadBudget();
+		return { ok: true, amount: budget.amount };
+	})
+	.post(
+		"/budget",
+		async ({ body }) => {
+			const amount = typeof body?.amount === "number" ? body.amount : 0;
+			await saveBudget(amount);
+			return { ok: true, amount };
+		},
+		{
+			body: t.Object({
+				amount: t.Number(),
 			}),
 		},
 	);

@@ -305,10 +305,20 @@ export async function mergeFolders(dataDir: string, folderNames: [string, string
 	await mkdir(folderPath, { recursive: true });
 	await writeFile(csvPath, rowsToCsv(finalRows), "utf-8");
 
-	const pdfPathA = folderPaths(dataDir, folderNames[0]).pdfPath;
-	const pdfPathB = folderPaths(dataDir, folderNames[1]).pdfPath;
-	await copyFile(pdfPathA, join(folderPath, `${folderName}_a.pdf`));
-	await copyFile(pdfPathB, join(folderPath, `${folderName}_b.pdf`));
+	const sourceFolderA = folderPaths(dataDir, folderNames[0]).folderPath;
+	const sourceFolderB = folderPaths(dataDir, folderNames[1]).folderPath;
+	const pdfsA = (await readdir(sourceFolderA)).filter((f) => f.endsWith(".pdf"));
+	const pdfsB = (await readdir(sourceFolderB)).filter((f) => f.endsWith(".pdf"));
+
+	let pdfCounter = 0;
+	for (const pdf of pdfsA) {
+		pdfCounter++;
+		await copyFile(join(sourceFolderA, pdf), join(folderPath, `${folderName}_${pdfCounter}.pdf`));
+	}
+	for (const pdf of pdfsB) {
+		pdfCounter++;
+		await copyFile(join(sourceFolderB, pdf), join(folderPath, `${folderName}_${pdfCounter}.pdf`));
+	}
 
 	const analysis = await analyzeCsvFiles(folderPath);
 	await persistTrend(dataDir, folderName, analysis);
@@ -317,7 +327,7 @@ export async function mergeFolders(dataDir: string, folderNames: [string, string
 	const snapshot: FolderSnapshot = {
 		folderName,
 		folderPath,
-		pdfPath: join(folderPath, `${folderName}_a.pdf`),
+		pdfPath: pdfCounter > 0 ? join(folderPath, `${folderName}_1.pdf`) : "",
 		csvPath,
 		parsedTextPath: join(folderPath, `${folderName}-parsed.txt`),
 		trendPath: join(folderPath, `${folderName}-trend.json`),

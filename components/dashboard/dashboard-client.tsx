@@ -54,10 +54,11 @@ export function DashboardClient() {
 						</div>
 					)}
 
+					<SummaryCards />
+
 					{analysis && selectedFolder && (
 						<>
 							<FilterBar />
-							<SummaryCards />
 							<CategoryPills />
 							<ChartGrid />
 							<div className="flex items-center justify-between">

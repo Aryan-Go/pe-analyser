@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { GroupedAutoTagRules } from "./grouped-auto-tag-rules";
+import { BudgetSettings } from "./budget-settings";
 import type { AutoTagRule } from "@/lib/autotag";
 import { ALLOWED_CATEGORIES } from "@/lib/categories";
 
@@ -14,21 +15,28 @@ export function SettingsClient() {
 	const [saving, setSaving] = useState(false);
 	const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 	const [dirty, setDirty] = useState(false);
+	const [budgetAmount, setBudgetAmount] = useState(0);
+	const [budgetSaving, setBudgetSaving] = useState(false);
 
 	const fetchData = useCallback(async () => {
 		try {
-			const [tagsRes, rulesRes] = await Promise.all([
+			const [tagsRes, rulesRes, budgetRes] = await Promise.all([
 				fetch("/api/tags"),
 				fetch("/api/autotag"),
+				fetch("/api/budget"),
 			]);
 			const tagsData = await tagsRes.json();
 			const rulesData = await rulesRes.json();
+			const budgetData = await budgetRes.json();
 
 			if (tagsData.ok && Array.isArray(tagsData.tags)) {
 				setTags((tagsData.tags as Array<{ tag: string }>).map((t) => t.tag));
 			}
 			if (rulesData.ok && Array.isArray(rulesData.rules)) {
 				setRules(rulesData.rules as AutoTagRule[]);
+			}
+			if (budgetData.ok && typeof budgetData.amount === "number") {
+				setBudgetAmount(budgetData.amount);
 			}
 		} catch {
 			setMessage({ type: "err", text: "Failed to load settings." });
@@ -85,6 +93,29 @@ export function SettingsClient() {
 				</Button>
 			</aside>
 			<main className="flex flex-1 flex-col gap-6 overflow-y-auto p-6">
+				<div>
+					<h1 className="text-lg font-semibold">Monthly Budget</h1>
+					<p className="mt-1 text-sm text-muted-foreground">
+						Set a global monthly spending limit. The dashboard card will show how much is left
+						before reaching your budget.
+					</p>
+				</div>
+
+				<BudgetSettings
+					amount={budgetAmount}
+					saving={budgetSaving}
+					onSave={async (amount) => {
+						setBudgetSaving(true);
+						await fetch("/api/budget", {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ amount }),
+						});
+						setBudgetAmount(amount);
+						setBudgetSaving(false);
+					}}
+				/>
+
 				<div>
 					<h1 className="text-lg font-semibold">Auto-Tag Rules</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
