@@ -1,6 +1,6 @@
 # PhonePe Tracker
 
-A dashboard for analyzing and categorizing PhonePe bank statements. Upload PDF statements, tag transactions by category, filter by month and category, merge multiple statements, and drill into spend patterns through interactive charts.
+A dashboard for analyzing and categorizing PhonePe bank statements. Upload PDF statements, tag transactions by category, filter by month and category, merge multiple statements, set monthly budgets, and drill into spend patterns through interactive charts.
 
 ## Tech Stack
 
@@ -12,6 +12,7 @@ A dashboard for analyzing and categorizing PhonePe bank statements. Upload PDF s
 | UI | React 19 + Tailwind CSS v4 + shadcn/ui |
 | Charts | Recharts |
 | State | Zustand |
+| Themes | next-themes (light/dark mode) |
 | PDF Parsing | pdf-parse (extracts text from PhonePe PDFs) |
 | Language | TypeScript |
 
@@ -41,17 +42,19 @@ Data is stored under `data/` in the project root. Each uploaded statement gets i
 - Download your PhonePe transaction statement as a PDF from the PhonePe app
 - In the sidebar, use **"Upload PDF"** to select the file
 - The app auto-generates a random folder name (e.g. `cosmic-falcon`), parses the PDF, extracts all transactions, and computes metrics
-- The new folder appears in the sidebar
+- The new folder appears at the top of the sidebar (sorted by recency)
 
 ### 2. View & Explore
 
 Click a folder in the sidebar to load the dashboard:
 
-- **Summary cards** — total inflow, outflow, net cashflow, transaction count
+- **Summary cards** — Available to Spend (budget card), total inflow, outflow, net cashflow, avg transaction size, transaction count
+- **Budget card** — Shows `Available = Budget + Net` with inline edit (pencil icon) and a breakdown of budget / net / inflow / outflow. Budget is set globally via the Settings page or inline from the card
 - **Category pills** — click any category to filter the entire dashboard to that category. Click multiple to combine filters. The **Untagged** pill filters to uncategorized transactions. Click again to remove. A **Clear** button resets all filters
 - **Month filter** — dropdown to filter by a specific YYYY-MM month
-- **Charts** — daily cashflow trend, category spend breakdown, top recipients, and weekday spend patterns. All charts respond to the current month and category filters
+- **Charts** — daily cashflow trend, category spend breakdown (pie chart), top recipients (horizontal bar), and weekday spend patterns. All charts respond to the current month and category filters
 - **Category Metrics table** — per-category breakdown with counts, averages, share %
+- **Data Quality section** — missing IDs, UTRs, descriptions, invalid amounts/dates, duplicates
 - **Transactions table** — paginated list of all transactions with inline category chips
 
 ### 3. Tag Transactions
@@ -72,16 +75,17 @@ Each transaction shows a row of category chips (FOOD, TRANSPORT, PERSONAL, etc.)
 
 ### 4. Multi-Tag Filtering
 
-Click multiple category pills at once to filter by any combination (e.g. FOOD + TRANSPORT). The summary cards, charts, and transaction table all narrow to show only matching rows.
+Click multiple category pills at once to filter by any combination (e.g. FOOD + TRANSPORT). The summary cards, charts, and transaction table all narrow to show only matching rows. The budget card also responds to the same filters — exclude Pocket Money to see your actual discretionary spending power.
 
 ### 5. Auto-Tag Rules
 
 Define rules that automatically tag transactions by matching terms in the sender name (e.g. `swiggy` → FOOD). Open the **Rules** popup from the sidebar to manage rules inline, or visit the full **Settings** page.
 
-- Rules have priority — drag them to reorder. Top rules are evaluated first.
-- Only **untagged** rows are affected. Manually-tagged transactions are never overwritten.
-- Rules apply during PDF upload and folder merging. Saving rules re-processes all existing folders, filling in blanks across every statement.
-- Terms are case-insensitive substrings matched against the transaction description.
+- Rules are grouped by category tag in collapsible accordion sections. Each section shows a rule count badge
+- Reorder rules within a tag group with ▲▼ buttons
+- Add new rules directly into any tag section via the inline input
+- Only **untagged** rows are affected. Manually-tagged transactions are never overwritten
+- Rules apply during PDF upload and folder merging. Saving rules re-processes all existing folders
 
 ### 6. Merge Statements
 
@@ -95,13 +99,22 @@ The backend:
 - Concatenates both CSVs
 - Deduplicates by transaction ID (latest timestamp wins)
 - Preserves category tags — if the newer row is untagged but the older one has a tag, the tag is inherited
-- Copies both source PDFs into the merged folder with `_a` / `_b` suffixes
+- Copies all PDF files from both source folders into the merged folder with sequential numbering
 - Generates a fresh analysis for the combined dataset
 - Creates a new folder with a `merged-` prefix
 
-### 7. Change Rows per Page
+### 7. Light / Dark Mode
 
-In the transactions table footer, use the dropdown to switch between 10, 25, 50, or 100 rows per page. The page resets to 1 when changing.
+Toggle between light and dark themes using the sun/moon button at the bottom of the sidebar. Your preference is saved to localStorage and respects system preference by default.
+
+### 8. Monthly Budget
+
+Set a global monthly spending limit in the Settings page or inline from the dashboard's budget card.
+
+- `Available = Budget + Net Cashflow` — your remaining spending capacity for the month
+- The card shows a breakdown: Budget / Net / Inflow / Outflow
+- Use the category filter pills to exclude categories like Pocket Money from the calculation
+- Green value = you're under budget. Red = you're over
 
 ## Categories
 
@@ -121,11 +134,15 @@ In the transactions table footer, use the dropdown to switch between 10, 25, 50,
 ```
 budget-tracker/
 ├── app/
-│   ├── api/[[...slugs]]/route.ts    # Elysia API (folders, categories, merge)
-│   └── dashboard/page.tsx           # Main dashboard page
+│   ├── api/[[...slugs]]/route.ts    # Elysia API (folders, categories, merge, budget, autotag)
+│   ├── dashboard/page.tsx           # Dashboard route
+│   ├── settings/page.tsx            # Settings route
+│   ├── layout.tsx                   # Root layout (ThemeProvider wrapper)
+│   ├── page.tsx                     # Landing page
+│   └── globals.css                  # Tailwind + CSS variables
 ├── components/
-│   ├── dashboard/                   # All dashboard components
-│   │   ├── charts.tsx               # Recharts charts (cashflow, spend, etc.)
+│   ├── dashboard/
+│   │   ├── charts.tsx               # Recharts charts (cashflow, spend, recipients, etc.)
 │   │   ├── chart-grid.tsx           # Chart layout grid
 │   │   ├── category-chip.tsx        # Clickable category tag chip
 │   │   ├── category-metrics-table.tsx
@@ -134,16 +151,23 @@ budget-tracker/
 │   │   ├── entries-table.tsx        # Transaction table with pagination
 │   │   ├── filter-bar.tsx           # Month filter dropdown
 │   │   ├── folder-list.tsx          # Sidebar folder list + merge UI
-│   │   ├── summary-cards.tsx        # Inflow/outflow/net summary
+│   │   ├── summary-cards.tsx        # Budget card + inflow/outflow/net cards
+│   │   ├── budget-card.tsx          # Available to Spend card with inline edit
 │   │   ├── keyboard-handler.tsx     # Keyboard shortcuts for tagging
 │   │   ├── batch-action-bar.tsx     # Bulk category assignment
-│   │   ├── rules-popup.tsx            # Inline auto-tag rules popup
-│   │   ├── sidebar.tsx              # Sidebar wrapper
+│   │   ├── data-quality-section.tsx # Data quality metrics + counterparties
+│   │   ├── rules-popup.tsx          # Inline auto-tag rules popup
+│   │   ├── sidebar.tsx              # Sidebar wrapper + theme toggle
 │   │   └── upload-panel.tsx         # PDF upload dropzone
 │   ├── settings/
-│   │   ├── settings-client.tsx       # Full settings page
-│   │   ├── auto-tag-rules.tsx        # Rules table (shared with popup)
-│   │   └── auto-tag-rule-row.tsx     # Single rule row
+│   │   ├── settings-client.tsx       # Full settings page (budget + rules)
+│   │   ├── budget-settings.tsx       # Monthly budget input form
+│   │   ├── grouped-auto-tag-rules.tsx # Tag-grouped accordion rules UI
+│   │   ├── rule-section.tsx         # Single tag's collapsible rule section
+│   │   ├── auto-tag-rules.tsx        # (legacy) Flat rule list
+│   │   └── auto-tag-rule-row.tsx     # (legacy) Single rule row
+│   ├── theme-provider.tsx           # next-themes wrapper
+│   ├── theme-toggle.tsx             # Light/dark mode toggle button
 │   └── ui/                          # shadcn/ui primitives
 ├── lib/
 │   ├── pdf/
@@ -151,22 +175,24 @@ budget-tracker/
 │   │   ├── analyse.ts               # Node-specific analysis entry
 │   │   └── analyser.ts              # Pure analysis computation (client-safe)
 │   ├── autotag.ts                   # Auto-tag rules: load/save/apply/reprocess
+│   ├── budget.ts                    # Budget CRUD: load/save budget.json
 │   ├── categories.ts                # Allowed categories + abbreviations
-│   ├── storage.ts                   # Folder management, merge logic
+│   ├── storage.ts                   # Folder management, merge logic, analysis I/O
 │   ├── types.ts                     # Re-exports
-│   └── utils.ts                     # Tailwind utilities
+│   └── utils.ts                     # Tailwind utilities (cn)
 ├── stores/
 │   └── dashboard.ts                 # Zustand store (rows, filters, analysis, merge)
 └── data/                            # Uploaded statements + config (gitignored)
     ├── tags.json                     # Canonical category list
-    └── autotag.json                 # Auto-tag rule definitions
+    ├── autotag.json                 # Auto-tag rule definitions
+    └── budget.json                  # Monthly budget amount
 ```
 
 ## API Endpoints
 
 | Method | Route | Purpose |
 |--------|-------|---------|
-| `GET` | `/api/folders` | List all folders with summary stats |
+| `GET` | `/api/folders` | List all folders (sorted by recency) |
 | `GET` | `/api/folders/:name` | Load a folder with all rows + analysis |
 | `POST` | `/api/folders` | Upload a PDF → create folder |
 | `POST` | `/api/folders/:name/categories` | Save category changes |
@@ -174,4 +200,6 @@ budget-tracker/
 | `GET` | `/api/tags` | List available tags |
 | `GET` | `/api/autotag` | Get auto-tag rules |
 | `POST` | `/api/autotag` | Save auto-tag rules + reprocess all folders |
-| `GET` | `/api/categories` | List available categories |
+| `GET` | `/api/categories` | List allowed categories |
+| `GET` | `/api/budget` | Get monthly budget amount |
+| `POST` | `/api/budget` | Set monthly budget amount |

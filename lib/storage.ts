@@ -165,18 +165,19 @@ export async function getAnalysisFolders(dataDir: string): Promise<string[]> {
 	const entries = await readdir(dataDir, { withFileTypes: true });
 	const folders = entries
 		.filter((entry) => entry.isDirectory())
-		.map((entry) => entry.name)
-		.sort((a, b) => a.localeCompare(b));
+		.map((entry) => entry.name);
 
-	const validFolders: string[] = [];
+	const validFolders: { name: string; created: number }[] = [];
 	for (const folderName of folders) {
 		const { csvPath } = folderPaths(dataDir, folderName);
-		if (await pathExists(csvPath)) {
-			validFolders.push(folderName);
-		}
+		if (!(await pathExists(csvPath))) continue;
+		const folderPath = join(dataDir, folderName);
+		const info = await stat(folderPath);
+		validFolders.push({ name: folderName, created: info.birthtimeMs ?? info.ctimeMs });
 	}
 
-	return validFolders;
+	validFolders.sort((a, b) => b.created - a.created);
+	return validFolders.map((f) => f.name);
 }
 
 export async function loadAnalysis(dataDir: string, folderName: string): Promise<WebAppPayload> {

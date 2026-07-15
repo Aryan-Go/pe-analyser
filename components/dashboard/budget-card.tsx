@@ -37,7 +37,7 @@ export function BudgetCard() {
 	const net = analysis?.metrics.summary.netCashflow ?? null;
 	const totalInflow = analysis?.metrics.summary.totalInflow ?? 0;
 	const totalOutflow = analysis?.metrics.summary.totalOutflow ?? 0;
-	const available = net !== null ? budget - net : 0;
+	const available = net !== null ? budget + net : 0;
 
 	return (
 		<Card size="sm">
