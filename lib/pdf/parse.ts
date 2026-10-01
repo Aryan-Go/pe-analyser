@@ -37,11 +37,11 @@ export function removeNonTransactionInfo(text: string): string {
 			continue;
 		}
 
-		if (/^\d{1,2}\s+[A-Za-z]{3},\s+\d{4}\s*-\s*\d{1,2}\s+[A-Za-z]{3},\s+\d{4}$/i.test(trimmed)) {
+		if (/^\d{1,2}\s+[A-Za-z]{3,9},\s+\d{4}\s*-\s*\d{1,2}\s+[A-Za-z]{3,9},\s+\d{4}$/i.test(trimmed)) {
 			continue;
 		}
 
-		if (/^datetransaction detailstypeamount$/i.test(trimmed.replace(/\s+/g, ""))) {
+		if (/^datetransactiondetailstypeamount$/i.test(trimmed.replace(/\s+/g, ""))) {
 			continue;
 		}
 
@@ -124,7 +124,7 @@ export function parseTransactionsFromCleanText(text: string): TxnRow[] {
 		.filter((line) => line.length > 0);
 
 	const rows: TxnRow[] = [];
-	const dateRegex = /^[A-Za-z]{3}\s+\d{1,2},\s+\d{4}$/;
+	const dateRegex = /^[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}$/;
 	const timeRegex = /^\d{1,2}:\d{2}\s*[ap]m$/i;
 	const creditDebitRegex = /^(CREDIT|DEBIT)(?:₹|INR)\s*([\d,]+(?:\.\d+)?)\s*(.*)$/i;
 
@@ -155,7 +155,7 @@ export function parseTransactionsFromCleanText(text: string): TxnRow[] {
 
 		// Parse UTR
 		let utr = "";
-		if (i < lines.length && /^UTR\s*(No\.?)?\s*:/i.test(lines[i] ?? "")) {
+		if (i < lines.length && /^UTR\b/i.test(lines[i] ?? "")) {
 			utr = (lines[i] as string).replace(/^UTR\s*(No\.?)?\s*:?\s*/i, "").trim();
 			i += 1;
 		}
