@@ -41,8 +41,9 @@ UploadPanel (client)
     → writeFile saves .pdf to data/cosmic-falcon/
     → createArtifactsFromPdf():
         pdfParse(buffer) → raw text
-        removeNonTransactionInfo() → clean text
-        parseTransactionsFromCleanText() → TxnRow[]
+        detectSource() → "phonepe" | "gpay" (or caller-supplied override)
+        provider.clean() → clean text
+        provider.parse() → TxnRow[]
         rowsToCsv() → writes .csv
     → loadAutoTagRules() → applyAutoTags() → writeCsvRows() (if rules exist)
     → analyzeCsvFiles():
@@ -98,12 +99,25 @@ The analyser class has no Node dependencies — it operates on typed objects. Th
 
 ### 2. PDF Parsing Strategy
 
-PhonePe PDFs don't have structured fields — they're layout-based. The parser uses a multi-pass regex approach:
-1. Extract raw text with `pdf-parse`
-2. Strip PII (phone numbers, email, addresses) and headers/footers with `removeNonTransactionInfo()`
-3. Parse transactions line-by-line with date/time regex + UTR/Txn ID patterns
-4. Determine CREDIT vs DEBIT from context ("received from" → CREDIT, else DEBIT)
-5. Output normalized CSV with columns: Txn ID, UTR, Date, Time, Amount, Sent to, CREDIT/DEBIT, Category
+Statements don't have structured fields — they're layout-based. Parsing is split per payment app behind a small provider interface (`lib/pdf/providers/`):
+
+| File | Role |
+|------|------|
+| `providers/index.ts` | Provider registry, content-based source detection, dispatch (`parseStatementFromText`) |
+| `providers/phonepe.ts` | PhonePe cleaner (`PII` + `removeNonTransactionInfo`) and parser |
+| `providers/gpay.ts` | Google Pay cleaner and parser |
+| `providers/types.ts` | `StatementProvider` interface |
+
+Each provider exposes `detect(raw)`, `clean(raw)` and `parse(clean)`, all producing the same `TxnRow` shape, so the analysis engine, storage, auto-tag and UI are app-agnostic.
+
+**Detection:** Google Pay is matched on `UPI Transaction ID` / `Google Pay`; PhonePe on the brand / `support.phonepe.com`. If nothing matches, both providers run and the one that finds the most transactions wins. An explicit `source` form field on upload overrides detection.
+
+**PhonePe** (3–9 letter month, `"Mon DD, YYYY"`): multi-pass line scanner keyed on a date line, a time line, `Transaction ID`, optional `UTR No.`, and a `CREDIT|DEBIT₹<amount>` line (in either of two orderings).
+
+**Google Pay** (`"DD Mon, YYYY"`, e.g. `"29 Nov, 2025"`): each block is roughly
+`"<date> <time> Paid to|Received from <name> UPI Transaction ID: <id> Paid by <bank> <last4> ₹<amount>"`, but the field order varies between PDF extractors. The parser therefore slices the flattened text between consecutive `₹<amount>` matches and pulls direction, payee, txn id, date and time out of each window independently of order. `Paid to` → DEBIT, `Received from` → CREDIT; Google Pay statements have no UTR so it is left blank.
+
+Shared output CSV columns (identical for both apps): `Txn ID, UTR, Date, Time, Amount, Sent to, CREDIT/DEBIT, Category`.
 
 ### 3. Merge Deduplication
 
@@ -184,7 +198,12 @@ The budget card doesn't compute anything — it reads `filteredAnalysis.metrics.
 
 ### 8. Date Format
 
-PhonePe CSVs use `"Jul 08, 2026"` format. The internal representation normalizes to `Date` objects where possible. Month extraction uses `getMonthFromDate()` which parses with `new Date(date)` and extracts `YYYY-MM`. The taste preference is **DD-MM-YYYY** for display, but internal format is `new Date()` compatible.
+Each provider normalizes its dates to a JS-parseable string while preserving the app's ordering:
+
+- **PhonePe** CSVs keep `"Jul 08, 2026"` / `"Sept 30, 2026"` (`Mon DD, YYYY`).
+- **Google Pay** emits `"29 Nov, 2025"` (`DD Mon, YYYY`).
+
+Both parse with `new Date("<date> <time>")`, so the analysis engine and the dashboard's `getMonthFromDate()` work unchanged. Month extraction parses with `new Date(date)` and extracts `YYYY-MM`. The taste preference is **DD-MM-YYYY** for display, but internal format is `new Date()` compatible.
 
 ## Storage Layout
 

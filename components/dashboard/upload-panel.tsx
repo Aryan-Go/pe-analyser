@@ -41,7 +41,7 @@ export function UploadPanel() {
 				<p className="text-xs text-muted-foreground">Processing...</p>
 			) : (
 				<>
-					<p className="text-xs font-medium">Drop a PhonePe statement PDF here</p>
+					<p className="text-xs font-medium">Drop a PhonePe or Google Pay statement PDF</p>
 					<p className="text-[0.6rem] text-muted-foreground">or click to browse</p>
 				</>
 			)}

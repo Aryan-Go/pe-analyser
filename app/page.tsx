@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const steps = [
-	{ icon: "📄", title: "Upload PDF", desc: "Drop a PhonePe statement PDF — it gets parsed automatically." },
+	{ icon: "📄", title: "Upload PDF", desc: "Drop a PhonePe or Google Pay statement PDF — it gets parsed automatically." },
 	{ icon: "🏷️", title: "Tag", desc: "Click chips or use keyboard shortcuts (1–7) to assign categories." },
 	{ icon: "⚡", title: "Auto-Tag", desc: "swiggy → FOOD. Untagged rows get filled in automatically." },
 	{ icon: "🔍", title: "Filter", desc: "By month, category pills, or the Untagged pill." },
@@ -9,7 +9,7 @@ const steps = [
 ];
 
 const features = [
-	{ icon: "📑", title: "PDF Parsing", desc: "Extracts sender, amount, date, Txn ID, and more from PhonePe bank PDFs." },
+	{ icon: "📑", title: "PDF Parsing", desc: "Extracts sender, amount, date, Txn ID, and more from PhonePe and Google Pay PDFs." },
 	{ icon: "⌨️", title: "Keyboard Tagging", desc: "↑↓ to navigate, 0–7 to tag — no mouse needed for bulk work." },
 	{ icon: "🎯", title: "Auto-Tag Rules", desc: "Match terms in sender names to categories. Only affects untagged rows." },
 	{ icon: "🏓", title: "Multi-Filter", desc: "Combine month, category, and untagged filters. Everything updates together." },
@@ -31,7 +31,7 @@ export default function LandingPage() {
 					<h1 className="max-w-2xl text-5xl font-bold tracking-tight leading-tight">
 						Track every{" "}
 						<span className="bg-gradient-to-r from-emerald-300 via-cyan-300 to-indigo-400 bg-clip-text text-transparent dark:from-emerald-400 dark:via-cyan-400 dark:to-indigo-400">
-							PhonePe
+							UPI
 						</span>{" "}
 						transaction
 					</h1>
@@ -118,7 +118,7 @@ export default function LandingPage() {
 			</main>
 
 			<footer className="relative border-t border-border py-6 text-center text-xs text-muted-foreground">
-				PhonePe Tracker · Built with Next.js, Recharts & Bun
+				UPI Tracker · Built with Next.js, Recharts & Bun
 			</footer>
 		</div>
 	);

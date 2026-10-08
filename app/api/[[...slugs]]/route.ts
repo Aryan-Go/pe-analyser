@@ -68,6 +68,9 @@ const app = new Elysia({ prefix: "/api" })
 				});
 			}
 
+			const sourceField = formData.get("source");
+			const source = sourceField === "gpay" || sourceField === "phonepe" ? sourceField : undefined;
+
 			await ensureDir(DATA_DIR);
 			const folderName = await createUniqueFolderName(DATA_DIR);
 			const paths = folderPaths(DATA_DIR, folderName);
@@ -76,7 +79,7 @@ const app = new Elysia({ prefix: "/api" })
 			const buffer = Buffer.from(await file.arrayBuffer());
 			await writeFile(paths.pdfPath, buffer);
 
-			const artifacts = await createArtifactsFromPdf(paths.pdfPath, paths.folderPath, `${folderName}.csv`);
+			const artifacts = await createArtifactsFromPdf(paths.pdfPath, paths.folderPath, `${folderName}.csv`, source);
 
 			const rules = await loadAutoTagRules();
 			if (rules.length > 0) {

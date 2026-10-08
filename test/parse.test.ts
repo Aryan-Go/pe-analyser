@@ -7,19 +7,21 @@ vi.mock("pdf-parse", () => ({ default: vi.fn() }));
 import pdfParse from "pdf-parse";
 
 import {
-	PII,
 	createArtifactsFromPdf,
 	csvEscape,
-	normalizeSentTo,
 	parseCsvText,
-	parseTransactionsFromCleanText,
 	readCsvRows,
-	removeNonTransactionInfo,
 	rowsToCsv,
 	updateCsvCategories,
 	writeCsvRows,
 	type TxnRow,
 } from "../lib/pdf/parse";
+import {
+	PII,
+	normalizeSentTo,
+	parseTransactionsFromCleanText,
+	removeNonTransactionInfo,
+} from "../lib/pdf/providers/phonepe";
 
 const mockedPdfParse = vi.mocked(pdfParse);
 

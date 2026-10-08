@@ -1,6 +1,8 @@
-# PhonePe Tracker
+# UPI Tracker
 
-A dashboard for analyzing and categorizing PhonePe bank statements. Upload PDF statements, tag transactions by category, filter by month and category, merge multiple statements, set monthly budgets, and drill into spend patterns through interactive charts.
+A dashboard for analyzing and categorizing PhonePe and Google Pay statements. Upload PDF statements, tag transactions by category, filter by month and category, merge multiple statements, set monthly budgets, and drill into spend patterns through interactive charts.
+
+The statement format is auto-detected on upload, so the same pipeline works for both apps and produces identical results.
 
 ## Tech Stack
 
@@ -13,7 +15,7 @@ A dashboard for analyzing and categorizing PhonePe bank statements. Upload PDF s
 | Charts | Recharts |
 | State | Zustand |
 | Themes | next-themes (light/dark mode) |
-| PDF Parsing | pdf-parse (extracts text from PhonePe PDFs) |
+| PDF Parsing | pdf-parse (extracts text from PhonePe & Google Pay PDFs) |
 | Language | TypeScript |
 
 ## Getting Started
@@ -39,9 +41,11 @@ Data is stored under `data/` in the project root. Each uploaded statement gets i
 
 ### 1. Upload a Statement
 
-- Download your PhonePe transaction statement as a PDF from the PhonePe app
+- Download your transaction statement as a PDF:
+  - **PhonePe:** History → My Statements → select date range → Download PDF
+  - **Google Pay:** Scroll down → Show transaction history → Download icon (top right) → select date range → Download PDF
 - In the sidebar, use **"Upload PDF"** to select the file
-- The app auto-generates a random folder name (e.g. `cosmic-falcon`), parses the PDF, extracts all transactions, and computes metrics
+- The app detects whether it is a PhonePe or Google Pay statement, auto-generates a random folder name (e.g. `cosmic-falcon`), parses the PDF, extracts all transactions, and computes metrics
 - The new folder appears at the top of the sidebar (sorted by recency)
 
 ### 2. View & Explore
@@ -171,7 +175,13 @@ budget-tracker/
 │   └── ui/                          # shadcn/ui primitives
 ├── lib/
 │   ├── pdf/
-│   │   ├── parse.ts                 # PDF → CSV parsing + CSV I/O
+│   │   ├── parse.ts                 # PDF → CSV parsing + CSV I/O + source dispatch
+│   │   ├── types.ts                 # TxnRow / TxnType / StatementSource
+│   │   ├── providers/               # Per-app statement parsers
+│   │   │   ├── index.ts             # Registry, source detection, dispatch
+│   │   │   ├── phonepe.ts           # PhonePe cleaner + parser
+│   │   │   ├── gpay.ts              # Google Pay cleaner + parser
+│   │   │   └── types.ts             # StatementProvider interface
 │   │   ├── analyse.ts               # Node-specific analysis entry
 │   │   └── analyser.ts              # Pure analysis computation (client-safe)
 │   ├── autotag.ts                   # Auto-tag rules: load/save/apply/reprocess

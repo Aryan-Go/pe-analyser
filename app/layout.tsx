@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Budget tracker",
-  description: "Analyze your wallet spending from PhonePe",
+  description: "Analyze your UPI spending from PhonePe and Google Pay",
 };
 
 export default function RootLayout({
